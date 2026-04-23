@@ -1,48 +1,62 @@
-import { Card } from './UI.jsx';
+import { Card, SectionHero } from './UI.jsx';
 import { DAILY_GOAL_KCAL } from '../lib/foodData.js';
-
-const fmt = (n) => Math.round(n);
-
-function calcTotals(items) {
-  return items.reduce(
-    (a, f) => ({ cal: a.cal + f.cal, protein: a.protein + f.protein, carbs: a.carbs + f.carbs, fat: a.fat + f.fat }),
-    { cal: 0, protein: 0, carbs: 0, fat: 0 }
-  );
-}
-
-const todayStr = () => new Date().toISOString().slice(0, 10);
-
-const last7Days = () => Array.from({ length: 7 }, (_, i) => {
-  const d = new Date(); d.setDate(d.getDate() - i);
-  return d.toISOString().slice(0, 10);
-}).reverse();
+import { formatShortDate, getLastNDates, getLocalDateString } from '../lib/date.js';
+import { calcTotals, roundValue } from '../lib/nutrition.js';
 
 export default function HistoryTab({ logs, C }) {
-  const days = last7Days();
+  const today = getLocalDateString();
+  const days = getLastNDates(7);
 
   const dayData = days.map(d => ({
     date: d,
-    label: d === todayStr() ? 'Today' : new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+    label: d === today ? 'Today' : formatShortDate(d),
     items: logs[d] || [],
     totals: calcTotals(logs[d] || []),
-    isToday: d === todayStr(),
+    isToday: d === today,
   }));
 
   const allCals = dayData.map(d => d.totals.cal).filter(Boolean);
-  const avgCal  = allCals.length ? fmt(allCals.reduce((a, b) => a + b, 0) / allCals.length) : 0;
-  const minCal  = allCals.length ? fmt(Math.min(...allCals)) : 0;
-  const maxCal  = allCals.length ? fmt(Math.max(...allCals)) : 0;
+  const avgCal  = allCals.length ? roundValue(allCals.reduce((a, b) => a + b, 0) / allCals.length) : 0;
+  const minCal  = allCals.length ? roundValue(Math.min(...allCals)) : 0;
+  const maxCal  = allCals.length ? roundValue(Math.max(...allCals)) : 0;
   const totalItems = dayData.reduce((a, d) => a + d.items.length, 0);
   const daysOnTrack = dayData.filter(d => d.totals.cal > 0 && d.totals.cal <= DAILY_GOAL_KCAL).length;
 
   return (
-    <div style={{ animation: 'fadeUp .3s' }}>
-      <h2 style={{ fontFamily: "'Syne', sans-serif", marginTop: 0, marginBottom: 20, fontSize: 22 }}>
-        7-Day Overview
-      </h2>
+    <div className="page-stack" style={{ animation: 'fadeUp .3s' }}>
+      <SectionHero
+        eyebrow="History"
+        title="Review the last seven days without the clutter."
+        subtitle="Use the weekly trend to catch under-eating, over-shooting your target, or inconsistent logging before it becomes a habit."
+        C={C}
+      >
+        {[
+          ['On track', `${daysOnTrack}/7`],
+          ['Entries', `${totalItems}`],
+          ['Average', avgCal ? `${avgCal} kcal` : 'No data'],
+        ].map(([label, value]) => (
+          <div
+            key={label}
+            style={{
+              padding: '12px 14px',
+              borderRadius: 18,
+              background: C.input,
+              border: `1px solid ${C.border}`,
+              minWidth: 118,
+            }}
+          >
+            <div style={{ color: C.sub, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6 }}>{label}</div>
+            <div style={{ color: C.text, fontWeight: 700, fontSize: 14, marginTop: 6 }}>{value}</div>
+          </div>
+        ))}
+      </SectionHero>
 
       {/* Bar chart */}
-      <Card C={C} style={{ marginBottom: 20 }}>
+      <Card C={C} style={{ padding: 24 }}>
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontWeight: 700, fontSize: 16, color: C.text }}>7-Day Calorie Trend</div>
+          <div style={{ color: C.sub, fontSize: 12, marginTop: 4 }}>Today stays pinned to the top of the week so comparisons are easy.</div>
+        </div>
         {dayData.map(d => {
           const pct = Math.min(100, (d.totals.cal / DAILY_GOAL_KCAL) * 100);
           const overGoal = d.totals.cal > DAILY_GOAL_KCAL;
@@ -71,7 +85,7 @@ export default function HistoryTab({ logs, C }) {
               <div style={{ width: 80, textAlign: 'right', fontSize: 13, fontWeight: 600, flexShrink: 0 }}>
                 {d.totals.cal > 0 ? (
                   <>
-                    <span style={{ color: overGoal ? C.red : C.text }}>{fmt(d.totals.cal)}</span>
+                    <span style={{ color: overGoal ? C.red : C.text }}>{roundValue(d.totals.cal)}</span>
                     <span style={{ color: C.sub, fontWeight: 400 }}> kcal</span>
                   </>
                 ) : (
@@ -87,7 +101,7 @@ export default function HistoryTab({ logs, C }) {
       </Card>
 
       {/* Stats grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 20 }}>
+      <div className="stats-grid">
         {[
           ['📊', 'Avg Calories',   avgCal ? avgCal + ' kcal' : '—'],
           ['🔽', 'Lowest Day',     minCal ? minCal + ' kcal' : '—'],
@@ -104,29 +118,36 @@ export default function HistoryTab({ logs, C }) {
       </div>
 
       {/* Macro breakdown by day */}
-      <Card C={C}>
-        <div style={{ fontWeight: 700, marginBottom: 16, fontSize: 15 }}>Macro Breakdown</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
-          {['Date', 'Protein', 'Carbs', 'Fat'].map(h => (
-            <div key={h} style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: 0.5 }}>{h}</div>
-          ))}
+      <Card C={C} style={{ padding: 24 }}>
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontWeight: 700, fontSize: 16, color: C.text }}>Macro Breakdown</div>
+          <div style={{ color: C.sub, fontSize: 12, marginTop: 4 }}>Recent days with logged meals and their protein, carbs, and fat totals.</div>
         </div>
-        {dayData.filter(d => d.items.length > 0).reverse().map(d => (
-          <div key={d.date} style={{
-            display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8,
-            padding: '8px 0', borderBottom: `1px solid ${C.border}`, fontSize: 13,
-          }}>
-            <div style={{ color: d.isToday ? C.accent : C.text, fontWeight: d.isToday ? 600 : 400 }}>
-              {d.isToday ? 'Today' : d.date.slice(5)}
+        <div style={{ overflowX: 'auto' }}>
+          <div style={{ minWidth: 420 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
+              {['Date', 'Protein', 'Carbs', 'Fat'].map(h => (
+                <div key={h} style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: 0.5 }}>{h}</div>
+              ))}
             </div>
-            <div style={{ color: C.accent }}>{fmt(d.totals.protein)}g</div>
-            <div style={{ color: C.orange }}>{fmt(d.totals.carbs)}g</div>
-            <div style={{ color: C.green }}>{fmt(d.totals.fat)}g</div>
+            {dayData.filter(d => d.items.length > 0).reverse().map(d => (
+              <div key={d.date} style={{
+                display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8,
+                padding: '8px 0', borderBottom: `1px solid ${C.border}`, fontSize: 13,
+              }}>
+                <div style={{ color: d.isToday ? C.accent : C.text, fontWeight: d.isToday ? 600 : 400 }}>
+                  {d.isToday ? 'Today' : d.date.slice(5)}
+                </div>
+                <div style={{ color: C.accent }}>{roundValue(d.totals.protein)}g</div>
+                <div style={{ color: C.orange }}>{roundValue(d.totals.carbs)}g</div>
+                <div style={{ color: C.green }}>{roundValue(d.totals.fat)}g</div>
+              </div>
+            ))}
+            {dayData.every(d => d.items.length === 0) && (
+              <div style={{ textAlign: 'center', padding: 24, color: C.sub }}>No data recorded yet</div>
+            )}
           </div>
-        ))}
-        {dayData.every(d => d.items.length === 0) && (
-          <div style={{ textAlign: 'center', padding: 24, color: C.sub }}>No data recorded yet</div>
-        )}
+        </div>
       </Card>
     </div>
   );

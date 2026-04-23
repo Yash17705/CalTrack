@@ -1,16 +1,8 @@
-import { Card, Btn } from './UI.jsx';
+import { Card, Btn, SectionHero } from './UI.jsx';
 import { DB } from '../lib/db.js';
 import { DAILY_GOAL_KCAL } from '../lib/foodData.js';
-
-const fmt = (n) => Math.round(n);
-const todayStr = () => new Date().toISOString().slice(0, 10);
-
-function calcTotals(items) {
-  return items.reduce(
-    (a, f) => ({ cal: a.cal + f.cal, protein: a.protein + f.protein, carbs: a.carbs + f.carbs, fat: a.fat + f.fat }),
-    { cal: 0, protein: 0, carbs: 0, fat: 0 }
-  );
-}
+import { getLastNDates, getLocalDateString } from '../lib/date.js';
+import { calcTotals, roundValue } from '../lib/nutrition.js';
 
 export default function ProfileTab({ currentUser, userData, onLogout, C }) {
   const user = DB.getUser(currentUser);
@@ -18,12 +10,9 @@ export default function ProfileTab({ currentUser, userData, onLogout, C }) {
 
   const allEntries   = Object.values(userData.logs).flat();
   const daysTracked  = Object.keys(userData.logs).filter(d => userData.logs[d].length > 0).length;
-  const todayTotals  = calcTotals(userData.logs[todayStr()] || []);
+  const todayTotals  = calcTotals(userData.logs[getLocalDateString()] || []);
 
-  const last7 = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(); d.setDate(d.getDate() - i);
-    return d.toISOString().slice(0, 10);
-  });
+  const last7 = getLastNDates(7).reverse();
   const streak = (() => {
     let s = 0;
     for (const d of last7) {
@@ -35,16 +24,43 @@ export default function ProfileTab({ currentUser, userData, onLogout, C }) {
 
   const avgCal = (() => {
     const vals = last7.map(d => calcTotals(userData.logs[d] || []).cal).filter(Boolean);
-    return vals.length ? fmt(vals.reduce((a, b) => a + b, 0) / vals.length) : 0;
+    return vals.length ? roundValue(vals.reduce((a, b) => a + b, 0) / vals.length) : 0;
   })();
 
   return (
-    <div style={{ animation: 'fadeUp .3s' }}>
+    <div className="page-stack" style={{ animation: 'fadeUp .3s' }}>
+      <SectionHero
+        eyebrow="Profile"
+        title="Your personal tracking snapshot."
+        subtitle="This page keeps the account details lightweight and focuses on the habits that matter: consistency, calorie trends, and reminder settings."
+        C={C}
+      >
+        {[
+          ['Streak', streak > 0 ? `${streak} days` : 'Start today'],
+          ['Tracked days', `${daysTracked}`],
+          ['7-day avg', avgCal ? `${avgCal} kcal` : 'No data'],
+        ].map(([label, value]) => (
+          <div
+            key={label}
+            style={{
+              padding: '12px 14px',
+              borderRadius: 18,
+              background: C.input,
+              border: `1px solid ${C.border}`,
+              minWidth: 118,
+            }}
+          >
+            <div style={{ color: C.sub, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6 }}>{label}</div>
+            <div style={{ color: C.text, fontWeight: 700, fontSize: 14, marginTop: 6 }}>{value}</div>
+          </div>
+        ))}
+      </SectionHero>
+
       {/* Avatar card */}
-      <Card C={C} style={{ textAlign: 'center', padding: '36px 24px', marginBottom: 16 }}>
+      <Card C={C} style={{ textAlign: 'center', padding: '36px 24px' }}>
         <div style={{
           width: 80, height: 80, borderRadius: '50%',
-          background: `linear-gradient(135deg, ${C.accent}, #9f6cff)`,
+          background: `linear-gradient(135deg, ${C.accent}, ${C.orange})`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           color: '#fff', fontWeight: 800, fontSize: 32,
           margin: '0 auto 16px',
@@ -62,11 +78,11 @@ export default function ProfileTab({ currentUser, userData, onLogout, C }) {
       </Card>
 
       {/* Stats grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+      <div className="stats-grid">
         {[
           ['🍽️', 'Total Entries',      allEntries.length,                      ''],
           ['📅', 'Days Tracked',        daysTracked,                            'days'],
-          ['🔥', "Today's Calories",    fmt(todayTotals.cal),                   'kcal'],
+          ['🔥', "Today's Calories",    roundValue(todayTotals.cal),            'kcal'],
           ['📊', '7-Day Avg',           avgCal,                                 'kcal/day'],
           ['💧', 'Water Interval',      userData.water.intervalMin,              'min'],
           ['💦', 'Per Reminder',        userData.water.qty,                     'ml'],
@@ -82,10 +98,13 @@ export default function ProfileTab({ currentUser, userData, onLogout, C }) {
       </div>
 
       {/* Daily goal progress */}
-      <Card C={C} style={{ marginBottom: 16 }}>
-        <div style={{ fontWeight: 700, marginBottom: 14, fontSize: 15 }}>Daily Calorie Goal</div>
+      <Card C={C} style={{ padding: 24 }}>
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontWeight: 700, fontSize: 16 }}>Daily Calorie Goal</div>
+          <div style={{ color: C.sub, fontSize: 12, marginTop: 4 }}>A quick comparison between today’s intake and your default target.</div>
+        </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 8, color: C.sub }}>
-          <span>{fmt(todayTotals.cal)} consumed</span>
+          <span>{roundValue(todayTotals.cal)} consumed</span>
           <span>{DAILY_GOAL_KCAL} goal</span>
         </div>
         <div style={{ height: 10, borderRadius: 99, background: C.border }}>
@@ -98,13 +117,13 @@ export default function ProfileTab({ currentUser, userData, onLogout, C }) {
         </div>
         <div style={{ marginTop: 8, fontSize: 12, color: C.sub }}>
           {todayTotals.cal > DAILY_GOAL_KCAL
-            ? `⚠️ ${fmt(todayTotals.cal - DAILY_GOAL_KCAL)} kcal over goal`
-            : `✅ ${fmt(DAILY_GOAL_KCAL - todayTotals.cal)} kcal remaining for today`}
+            ? `⚠️ ${roundValue(todayTotals.cal - DAILY_GOAL_KCAL)} kcal over goal`
+            : `✅ ${roundValue(DAILY_GOAL_KCAL - todayTotals.cal)} kcal remaining for today`}
         </div>
       </Card>
 
       {/* App info */}
-      <Card C={C} style={{ marginBottom: 16, fontSize: 13, color: C.sub }}>
+      <Card C={C} style={{ fontSize: 13, color: C.sub, padding: 24 }}>
         <div style={{ fontWeight: 700, color: C.text, marginBottom: 10 }}>About CalTrack</div>
         <p style={{ margin: '0 0 6px' }}>⚡ Version 1.0 · All data stored locally in your browser</p>
         <p style={{ margin: '0 0 6px' }}>🔒 No server, no cloud, completely private</p>

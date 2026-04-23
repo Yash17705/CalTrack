@@ -2,10 +2,12 @@
 
 A lightweight React + Vite app for tracking daily calories, macros, hydration, and nutrition habits.
 
-CalTrack stores all user data locally in the browser and runs entirely without a backend, making it ideal for personal use, demos, and GitHub Pages deployment.
+CalTrack stores all user data locally in the browser and runs entirely without a backend, making it ideal for personal use and demos.
 
 ## 🚀 Live Preview
-> Use the dev server at `http://localhost:5173` after starting the app.
+> Visit the live site at https://caltrack12.netlify.app/
+
+Or run locally at `http://localhost:5173` after starting the app.
 
 ## 💻 Features
 
@@ -34,7 +36,7 @@ CalTrack stores all user data locally in the browser and runs entirely without a
 - Node.js 18+ (or latest stable version)
 - npm
 
-### Install
+### Install dependencies
 
 ```bash
 cd caltrack
@@ -83,31 +85,6 @@ caltrack/
         ├── ProfileTab.jsx
         └── UI.jsx
 ```
-
-## ⚙️ Deployment
-
-### GitHub Pages
-
-1. Build the app:
-   ```bash
-   npm run build
-   ```
-2. Deploy the contents of `dist/` to GitHub Pages.
-
-### Vercel
-
-```bash
-npm install -g vercel
-vercel
-```
-
-### Netlify
-
-```bash
-npm run build
-```
-
-Then deploy the generated `dist/` folder via the Netlify UI.
 
 ## 🛠️ Customization
 
